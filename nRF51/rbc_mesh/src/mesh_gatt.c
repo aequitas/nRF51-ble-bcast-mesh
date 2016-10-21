@@ -43,19 +43,31 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "ble_err.h"
 #include <string.h>
 
+#include <notification_buffer.h>
+#ifdef MESH_USE_APP_SCHEDULER
+#include "app_scheduler.h"
+#endif
+
+#if (NORDIC_SDK_VERSION >= 11)
+#define BLE_ERROR_NO_TX BLE_ERROR_NO_TX_PACKETS
+#else
+#define BLE_ERROR_NO_TX BLE_ERROR_NO_TX_BUFFERS
+#endif
+
 extern uint32_t rbc_mesh_event_push(rbc_mesh_event_t* p_event);
 
 typedef struct
 {
     uint16_t service_handle;
     bool notification_enabled;
+    bool notifications_pending;
     ble_gatts_char_handles_t ble_md_char_handles;
     ble_gatts_char_handles_t ble_val_char_handles;
 } mesh_srv_t;
 /*****************************************************************************
 * Static globals
 *****************************************************************************/
-static mesh_srv_t m_mesh_service = {0, false, {0}, {0}};
+static mesh_srv_t m_mesh_service = {0, false, false, {0}, {0}};
 
 static const ble_uuid128_t m_mesh_base_uuid = {{0x1E, 0xCD, 0x00, 0x00,
                                             0x8C, 0xB9, 0xA8, 0x8B,
@@ -72,6 +84,9 @@ typedef enum
     MESH_GATT_EVT_OPCODE_FLAG_REQ = 0x02,
     MESH_GATT_EVT_OPCODE_CMD_RSP  = 0x11,
     MESH_GATT_EVT_OPCODE_FLAG_RSP = 0x12,
+    MESH_GATT_EVT_OPCODE_DATA_MULTIPART_START = 0x20,
+    MESH_GATT_EVT_OPCODE_DATA_MULTIPART_MID = 0x21,
+    MESH_GATT_EVT_OPCODE_DATA_MULTIPART_END = 0x22
 } mesh_gatt_evt_opcode_t;
 
 typedef enum
@@ -149,11 +164,7 @@ static uint32_t mesh_gatt_evt_push(mesh_gatt_evt_t* p_gatt_evt)
     }
     if (count == 0)
     {
-#if (NORDIC_SDK_VERSION >= 11) 
-        return BLE_ERROR_NO_TX_PACKETS;
-#else
-        return BLE_ERROR_NO_TX_BUFFERS;
-#endif
+    	return BLE_ERROR_NO_TX;
     }
 
     ble_gatts_hvx_params_t hvx_params;
@@ -164,8 +175,11 @@ static uint32_t mesh_gatt_evt_push(mesh_gatt_evt_t* p_gatt_evt)
     switch (p_gatt_evt->opcode)
     {
         case MESH_GATT_EVT_OPCODE_DATA:
-            hvx_len = p_gatt_evt->param.data_update.data_len + 4;
-            break;
+        case MESH_GATT_EVT_OPCODE_DATA_MULTIPART_START:
+        case MESH_GATT_EVT_OPCODE_DATA_MULTIPART_MID:
+        case MESH_GATT_EVT_OPCODE_DATA_MULTIPART_END:
+                hvx_len = p_gatt_evt->param.data_update.data_len + 4;
+                break;
         case MESH_GATT_EVT_OPCODE_FLAG_SET:
         case MESH_GATT_EVT_OPCODE_FLAG_REQ:
         case MESH_GATT_EVT_OPCODE_FLAG_RSP:
@@ -385,26 +399,158 @@ uint32_t mesh_gatt_init(uint32_t access_address, uint8_t channel, uint32_t inter
     return NRF_SUCCESS;
 }
 
-uint32_t mesh_gatt_value_set(rbc_mesh_value_handle_t handle, uint8_t* data, uint8_t length)
-{
-    if (length > RBC_MESH_VALUE_MAX_LEN)
-    {
-        return NRF_ERROR_INVALID_LENGTH;
-    }
-    if (m_active_conn_handle != CONN_HANDLE_INVALID)
-    {
-        mesh_gatt_evt_t gatt_evt;
-        gatt_evt.opcode = MESH_GATT_EVT_OPCODE_DATA;
-        gatt_evt.param.data_update.handle = handle;
-        gatt_evt.param.data_update.data_len = length;
-        memcpy(gatt_evt.param.data_update.data, data, length);
 
-        return mesh_gatt_evt_push(&gatt_evt);
-    }
-    else
-    {
-        return BLE_ERROR_INVALID_CONN_HANDLE;
-    }
+uint32_t mesh_gatt_notification_push(waiting_notification_t* notification)
+{
+	uint32_t err_code;
+
+	// retrieve message data from notification object
+	uint8_t* data = notification->data;
+	uint8_t length = notification->length;
+	uint8_t offset = notification->offset;
+	rbc_mesh_value_handle_t handle = notification->handle;
+
+	// offset is tracking how many bytes of data have been sent so far
+	// as there is still data to be sent ...
+	while (offset < length) {
+		mesh_gatt_evt_t gatt_evt;
+
+		// in one mesh gatt notification there is space for max 16 bytes of data
+		uint8_t part_len = 16;
+
+		// determine the opcode, distinguish between first, last and in between packets
+		// to simplify assembly and detection of lost messages on receiving side
+		if (offset == 0)
+		{
+			gatt_evt.opcode = MESH_GATT_EVT_OPCODE_DATA_MULTIPART_START;
+		}
+		else if (length - offset > part_len)
+		{
+			gatt_evt.opcode = MESH_GATT_EVT_OPCODE_DATA_MULTIPART_MID;
+		}
+		else
+		{
+			gatt_evt.opcode = MESH_GATT_EVT_OPCODE_DATA_MULTIPART_END;
+		}
+
+		// adjust part length if less than 16 bytes are sent
+		part_len = MIN(part_len, length - offset);
+
+		// create gatt_evt
+		gatt_evt.param.data_update.handle = handle;
+		gatt_evt.param.data_update.data_len = part_len;
+		memcpy(gatt_evt.param.data_update.data, data + offset,
+				part_len);
+
+		err_code = mesh_gatt_evt_push(&gatt_evt);
+
+		// if softdevice returns no more tx buffers
+		if (err_code == BLE_ERROR_NO_TX)
+		{
+			// store the current offset to be resumed later
+			notification->offset = offset;
+
+			return BLE_ERROR_NO_TX;
+		}
+		else if (err_code != NRF_SUCCESS)
+		{
+			// propagate error code
+			return err_code;
+		}
+
+		// if success, update offset and continue with next part
+		offset += part_len;
+	}
+
+	// if all parts sent, return success
+	return NRF_SUCCESS;
+}
+
+void mesh_gatt_send_notifications()
+{
+	while (!nb_empty())
+	{
+		// get next notification from buffer (do not remove yet!)
+		waiting_notification_t* notification = nb_peek();
+
+		// try to send notification with multi parts
+		uint32_t err_code = mesh_gatt_notification_push(notification);
+
+		if (err_code == BLE_ERROR_NO_TX)
+		{
+			// set notifications pending flag
+			m_mesh_service.notifications_pending = true;
+
+			// return and try again next time
+			return;
+		}
+		else
+		{
+			// if notification sent successfully, or error other than no tx is returned
+			// remove the notification from the buffer
+			nb_pop();
+		}
+	}
+}
+
+void mesh_gatt_notification_handle(void* p_event_data, uint16_t event_size)
+{
+	mesh_gatt_send_notifications();
+}
+
+uint32_t mesh_gatt_value_set(rbc_mesh_value_handle_t handle, uint8_t* data,	uint8_t length)
+{
+	// return error if length is bigger than max mesh value length
+	if (length > RBC_MESH_VALUE_MAX_LEN)
+	{
+		return NRF_ERROR_INVALID_LENGTH;
+	}
+
+	if (m_active_conn_handle != CONN_HANDLE_INVALID)
+	{
+		if (nb_full())
+		{
+			// return error if notification buffer is full
+			return NRF_ERROR_NO_MEM;
+		}
+		else
+		{
+			if (!m_mesh_service.notification_enabled)
+			{
+				// clear flags and notification buffer if gatt notifications are disabled
+				m_mesh_service.notifications_pending = false;
+				nb_clear();
+
+				return BLE_ERROR_NOT_ENABLED;
+			}
+
+			// get notification element from buffer and fill with message data
+			waiting_notification_t* notification = nb_next();
+
+			notification->offset = 0;
+			memcpy(notification->data, data, length);
+			notification->length = length;
+			notification->handle = handle;
+
+			// if no notifications pending yet
+			if (!m_mesh_service.notifications_pending)
+			{
+				// start sending message via gatt notifications
+#ifdef MESH_USE_APP_SCHEDULER
+				app_sched_event_put(NULL, 0, mesh_gatt_notification_handle);
+#else
+				mesh_gatt_send_notifications();
+#endif
+			}
+			else
+			{
+				// otherwise return error
+				return BLE_ERROR_NO_TX;
+			}
+		}
+	}
+
+	return BLE_ERROR_INVALID_CONN_HANDLE;
 }
 
 void mesh_gatt_sd_ble_event_handle(ble_evt_t* p_ble_evt)
@@ -570,7 +716,23 @@ void mesh_gatt_sd_ble_event_handle(ble_evt_t* p_ble_evt)
     else if (p_ble_evt->header.evt_id == BLE_GAP_EVT_DISCONNECTED)
     {
         m_active_conn_handle = CONN_HANDLE_INVALID;
+        
+		// clear notification buffer and flag on disconnect
+		m_mesh_service.notifications_pending = false;
+		nb_clear();
     }
+    else if (p_ble_evt->header.evt_id == BLE_EVT_TX_COMPLETE)
+    {
+    	// if notifications pending, resume
+		if (m_mesh_service.notifications_pending)
+		{
+#ifdef MESH_USE_APP_SCHEDULER
+			app_sched_event_put(NULL, 0, mesh_gatt_notification_handle);
+#else
+			mesh_gatt_send_notifications();
+#endif
+		}
+	}
 }
 
 #else /* SOFTDEVICE NOT PRESENT */
