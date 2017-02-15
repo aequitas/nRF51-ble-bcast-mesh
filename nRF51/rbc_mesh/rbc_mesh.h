@@ -44,14 +44,23 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define RBC_MESH_ACCESS_ADDRESS_BLE_ADV             (0x8E89BED6) /**< BLE spec defined access address. */
 #define RBC_MESH_INTERVAL_MIN_MIN_MS                (5) /**< Lowest min-interval allowed. */
 #define RBC_MESH_INTERVAL_MIN_MAX_MS                (60000) /**< Highest min-interval allowed. */
-#ifndef RBC_MESH_VALUE_MAX_LEN
-    #define RBC_MESH_VALUE_MAX_LEN                  (23) /**< Longest legal payload. */
-#endif
 #define RBC_MESH_INVALID_HANDLE                     (0xFFFF) /**< Designated "invalid" handle, may never be used */
 #define RBC_MESH_APP_MAX_HANDLE                     (0xFFEF) /**< Upper limit to application defined handles. The last 16 handles are reserved for mesh-maintenance. */
 
 #define RBC_MESH_GPREGRET_CODE_GO_TO_APP            (0x00) /**< Retention register code for immediately starting application when entering bootloader. The default behavior. */
 #define RBC_MESH_GPREGRET_CODE_FORCED_REBOOT        (0x01) /**< Retention register code for telling the bootloader it's been started on purpose */
+
+#ifdef RBC_MESH_VALUE_MAX_LEN
+	#if RADIO_PCNF1_MAXLEN < RBC_MESH_VALUE_MAX_LEN + 14
+		#error "RBC_MESH_VALUE_MAX_LENGTH has to be smaller than or equal to (RADIO_PCNF1_MAXLEN - 14)"
+	#endif
+#else
+	#ifdef RADIO_PCNF1_MAXLEN
+		#define RBC_MESH_VALUE_MAX_LEN              (RADIO_PCNF1_MAXLEN - 14)
+	#else
+		#define RBC_MESH_VALUE_MAX_LEN              (23) /**< Longest legal payload. */
+	#endif
+#endif
 
 /*
    There are two caches in the framework:
