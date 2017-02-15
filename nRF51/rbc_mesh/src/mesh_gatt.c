@@ -396,6 +396,9 @@ uint32_t mesh_gatt_init(uint32_t access_address, uint8_t channel, uint32_t inter
         return error_code;
     }
 
+    // make sure we start with an clean/initialized notification buffer
+    nb_clear();
+
     return NRF_SUCCESS;
 }
 
@@ -489,6 +492,8 @@ void mesh_gatt_send_notifications()
 			// if notification sent successfully, or error other than no tx is returned
 			// remove the notification from the buffer
 			nb_pop();
+
+			m_mesh_service.notifications_pending = false;
 		}
 	}
 }
