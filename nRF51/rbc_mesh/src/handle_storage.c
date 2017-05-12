@@ -39,7 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "timer.h"
 #include "app_error.h"
 
-#define MESH_TRICKLE_I_MAX              (2048)
+#define MESH_TRICKLE_I_MAX              (128)
 #define MESH_TRICKLE_K                  (3)
 
 
