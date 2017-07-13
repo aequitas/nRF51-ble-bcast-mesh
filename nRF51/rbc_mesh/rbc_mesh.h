@@ -254,6 +254,7 @@ typedef struct
 	nrf_clock_lfclksrc_t lfclksrc;
 #endif
     rbc_mesh_txpower_t tx_power;
+    bool enable_gatt_service;
 } rbc_mesh_init_params_t;
 
 typedef enum

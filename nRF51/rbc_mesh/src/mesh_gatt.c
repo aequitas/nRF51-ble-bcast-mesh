@@ -58,6 +58,7 @@ extern uint32_t rbc_mesh_event_push(rbc_mesh_event_t* p_event);
 
 typedef struct
 {
+	bool enabled;
     uint16_t service_handle;
     bool notification_enabled;
     bool notifications_pending;
@@ -67,7 +68,7 @@ typedef struct
 /*****************************************************************************
 * Static globals
 *****************************************************************************/
-static mesh_srv_t m_mesh_service = {0, false, false, {0}, {0}};
+static mesh_srv_t m_mesh_service = {false, 0, false, false, {0}, {0}};
 
 static const ble_uuid128_t m_mesh_base_uuid = {{0x1E, 0xCD, 0x00, 0x00,
                                             0x8C, 0xB9, 0xA8, 0x8B,
@@ -399,6 +400,8 @@ uint32_t mesh_gatt_init(uint32_t access_address, uint8_t channel, uint32_t inter
     // make sure we start with an clean/initialized notification buffer
     nb_clear();
 
+    m_mesh_service.enabled = true;
+
     return NRF_SUCCESS;
 }
 
@@ -505,6 +508,10 @@ void mesh_gatt_notification_handle(void* p_event_data, uint16_t event_size)
 
 uint32_t mesh_gatt_value_set(rbc_mesh_value_handle_t handle, uint8_t* data,	uint8_t length)
 {
+	if (!m_mesh_service.enabled) {
+		return NRF_SUCCESS;
+	}
+
 	// return error if length is bigger than max mesh value length
 	if (length > RBC_MESH_VALUE_MAX_LEN)
 	{
@@ -546,6 +553,7 @@ uint32_t mesh_gatt_value_set(rbc_mesh_value_handle_t handle, uint8_t* data,	uint
 #else
 				mesh_gatt_send_notifications();
 #endif
+				// TODO: return success here?
 			}
 			else
 			{
@@ -560,6 +568,10 @@ uint32_t mesh_gatt_value_set(rbc_mesh_value_handle_t handle, uint8_t* data,	uint
 
 void mesh_gatt_sd_ble_event_handle(ble_evt_t* p_ble_evt)
 {
+	if (!m_mesh_service.enabled) {
+		return;
+	}
+
     if (p_ble_evt->header.evt_id == BLE_GATTS_EVT_WRITE)
     {
         if (p_ble_evt->evt.gatts_evt.params.write.handle == m_mesh_service.ble_val_char_handles.value_handle)

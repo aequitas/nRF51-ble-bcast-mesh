@@ -116,10 +116,13 @@ uint32_t rbc_mesh_init(rbc_mesh_init_params_t init_params)
         return error_code;
     }
 
-    error_code = mesh_gatt_init(init_params.access_addr, init_params.channel, init_params.interval_min_ms);
-    if (error_code != NRF_SUCCESS)
+    if (init_params.enable_gatt_service)
     {
-        return error_code;
+        error_code = mesh_gatt_init(init_params.access_addr, init_params.channel, init_params.interval_min_ms);
+        if (error_code != NRF_SUCCESS)
+        {
+            return error_code;
+        }
     }
 
     timeslot_init(init_params.lfclksrc);
