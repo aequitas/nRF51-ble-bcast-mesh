@@ -111,6 +111,9 @@ uint8_t mesh_packet_ref_count_get(mesh_packet_t* p_packet);
 
 uint32_t mesh_packet_set_local_addr(mesh_packet_t* p_packet);
 
+// Set a custom local address, copies data at p_addr to packet.
+uint32_t mesh_packet_set_custom_local_addr(uint8_t* p_addr);
+
 uint32_t mesh_packet_build(mesh_packet_t* p_packet,
         rbc_mesh_value_handle_t handle,
         uint16_t version,

@@ -38,6 +38,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 static mesh_packet_t g_packet_pool[RBC_MESH_PACKET_POOL_SIZE];
 static uint8_t g_packet_refs[RBC_MESH_PACKET_POOL_SIZE];
+static uint8_t g_packet_local_addr[BLE_GAP_ADDR_LEN];
+static bool g_packet_local_addr_set = false;
 /******************************************************************************
 * Interface functions
 ******************************************************************************/
@@ -138,6 +140,12 @@ uint8_t mesh_packet_ref_count_get(mesh_packet_t* p_packet)
 
 uint32_t mesh_packet_set_local_addr(mesh_packet_t* p_packet)
 {
+	if (g_packet_local_addr_set) {
+		p_packet->header.addr_type = 1; // Random address
+		memcpy(p_packet->addr, &(g_packet_local_addr[0]), BLE_GAP_ADDR_LEN);
+		return NRF_SUCCESS;
+	}
+
 #ifdef SOFTDEVICE_PRESENT
     ble_gap_addr_t my_addr;
     uint32_t error_code = sd_ble_gap_address_get(&my_addr);
@@ -153,6 +161,12 @@ uint32_t mesh_packet_set_local_addr(mesh_packet_t* p_packet)
 #endif
 
     return NRF_SUCCESS;
+}
+
+uint32_t mesh_packet_set_custom_local_addr(uint8_t* p_addr) {
+	memcpy(g_packet_local_addr, p_addr, BLE_GAP_ADDR_LEN);
+	g_packet_local_addr_set = true;
+	return NRF_SUCCESS;
 }
 
 uint32_t mesh_packet_build(mesh_packet_t* p_packet,

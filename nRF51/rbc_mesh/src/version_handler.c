@@ -49,9 +49,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include "nrf_gpio.h"
 
 
 #define TIMESLOT_STARTUP_DELAY_US       (100)
+#define RSSI_LIST_SIZE                  (10)
+#define RSSI_DISCOUNT_FACTOR            (0.01)
+
+#define TEST_PIN 22
 
 /* event push isn't present in the API header file. */
 extern uint32_t rbc_mesh_event_push(rbc_mesh_event_t* p_evt);
@@ -63,6 +68,7 @@ extern uint32_t rbc_mesh_event_push(rbc_mesh_event_t* p_evt);
 static bool             m_is_initialized = false;
 static timer_event_t    m_tx_timer_evt;
 static tc_tx_config_t   m_tx_config;
+static rssi_avg_t       m_rssi_averages[RSSI_LIST_SIZE];
 /******************************************************************************
 * Static functions
 ******************************************************************************/
@@ -197,6 +203,10 @@ uint32_t vh_init(uint32_t min_interval_us,
     m_tx_config.channel_map = 1; /* Only the first channel */
     m_tx_config.tx_power = tx_power;
 
+#ifdef TEST_PIN
+	nrf_gpio_cfg_output(TEST_PIN);
+#endif
+
     m_is_initialized = true;
     return NRF_SUCCESS;
 }
@@ -224,16 +234,26 @@ uint32_t vh_rx(mesh_packet_t* p_packet, uint32_t timestamp, uint8_t rssi)
 
     int16_t delta = version_delta(info.version, p_adv_data->version);
 
+    int8_t avgRssi = vh_average_rssi(p_packet->addr[0], -((int8_t) rssi));
+
     /* prepare app event */
     rbc_mesh_event_t evt;
     evt.params.rx.version_delta = delta;
     evt.params.rx.ble_adv_addr.addr_type = p_packet->header.addr_type;
     memcpy(evt.params.rx.ble_adv_addr.addr, p_packet->addr, BLE_GAP_ADDR_LEN);
-    evt.params.rx.rssi = -((int8_t) rssi);
+//    evt.params.rx.rssi = -((int8_t) rssi);
+    evt.params.rx.rssi = avgRssi;
     evt.params.rx.p_data = p_adv_data->data;
     evt.params.rx.data_len = p_adv_data->adv_data_length - MESH_PACKET_ADV_OVERHEAD;
     evt.params.rx.value_handle = p_adv_data->handle;
     evt.params.rx.timestamp_us = timestamp;
+
+    // Always set local address, so that the packet we send has our address.
+    mesh_packet_set_local_addr(p_packet);
+
+#ifdef TEST_PIN
+	nrf_gpio_pin_toggle(TEST_PIN);
+#endif
 
     if (error_code == NRF_ERROR_NOT_FOUND)
     {
@@ -563,4 +583,43 @@ uint32_t vh_value_persistence_get(rbc_mesh_value_handle_t handle, bool* p_persis
 
     event_handler_critical_section_end();
     return error_code;
+}
+
+int8_t vh_average_rssi(uint8_t id, int8_t rssi)
+{
+	if (rssi >= 0 || rssi < -120) {
+		// Invalid rssi!
+		return rssi;
+	}
+	bool found = false;
+	int8_t minRssi = 127;
+	int8_t minRssiInd = 0;
+	uint8_t i;
+	for (i=0; i<RSSI_LIST_SIZE; ++i) {
+		if (m_rssi_averages[i].id == id) {
+			found = true;
+			break;
+		}
+		if (m_rssi_averages[i].rssi < minRssi) {
+			minRssi = m_rssi_averages[i].rssi;
+			minRssiInd = i;
+		}
+	}
+	if (found) {
+		m_rssi_averages[i].rssi = RSSI_DISCOUNT_FACTOR * rssi + (1.0 - RSSI_DISCOUNT_FACTOR) * m_rssi_averages[i].rssi;
+		return m_rssi_averages[i].rssi;
+	}
+	m_rssi_averages[minRssiInd].id = id;
+	m_rssi_averages[minRssiInd].rssi = rssi;
+	return rssi;
+}
+
+int8_t vh_get_rssi(uint8_t id)
+{
+	for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
+		if (m_rssi_averages[i].id == id) {
+			return m_rssi_averages[i].rssi;
+		}
+	}
+	return 0;
 }

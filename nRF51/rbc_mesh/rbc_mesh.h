@@ -610,5 +610,20 @@ void rbc_mesh_event_release(rbc_mesh_event_t* p_evt);
 */
 void rbc_mesh_packet_peek_cb_set(rbc_mesh_packet_peek_cb_t packet_peek_cb);
 
+/**
+ * @brief Set custom local address. This will be sent instead of the MAC address.
+ *
+ * @param[in] p_address Pointer to address (data will be copied). Must be 6 long.
+ */
+void rbc_mesh_set_custom_local_address(uint8_t* p_address);
+
+/**
+ * @brief Get the averaged rssi of a given id.
+ *
+ * @param[in] id Id of the node.
+ * @return Average rssi of given node, 0 when unknown.
+ */
+int8_t rbc_mesh_get_rssi(uint8_t id);
+
 #endif /* _RBC_MESH_H__ */
 

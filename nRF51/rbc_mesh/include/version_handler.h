@@ -36,6 +36,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdint.h>
 #include <stdbool.h>
 
+typedef __packed_armcc struct {
+	uint8_t id;
+	int8_t rssi;
+} __packed_gcc rssi_avg_t;
+
 uint32_t vh_init(uint32_t min_interval_us,
                  uint32_t access_address,
                  uint8_t channel,
@@ -69,6 +74,12 @@ uint32_t vh_value_is_enabled(rbc_mesh_value_handle_t handle, bool* p_is_enabled)
 uint32_t vh_value_persistence_set(rbc_mesh_value_handle_t handle, bool persistent);
 
 uint32_t vh_value_persistence_get(rbc_mesh_value_handle_t handle, bool* p_persistent);
+
+/** @brief: Averages and stores the rssi, returns the average. */
+int8_t   vh_average_rssi(uint8_t id, int8_t rssi);
+
+/** @brief: Get the averaged rssi, returns 0 when no value is known. */
+int8_t   vh_get_rssi(uint8_t id);
 
 #endif /* _VERSION_HANDLER_H__ */
 
