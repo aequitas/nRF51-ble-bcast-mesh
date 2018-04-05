@@ -203,6 +203,11 @@ uint32_t vh_init(uint32_t min_interval_us,
     m_tx_config.channel_map = 1; /* Only the first channel */
     m_tx_config.tx_power = tx_power;
 
+    for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
+    	m_rssi_averages[i].id = 0;
+    	m_rssi_averages[i].rssi = -128;
+    }
+
 #ifdef TEST_PIN
 	nrf_gpio_cfg_output(TEST_PIN);
 #endif
