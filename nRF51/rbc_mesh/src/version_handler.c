@@ -628,3 +628,7 @@ int8_t vh_get_rssi(uint8_t id)
 	}
 	return 0;
 }
+
+rssi_avg_t* vh_get_rssi_list() {
+	return &(m_rssi_averages[0]);
+}

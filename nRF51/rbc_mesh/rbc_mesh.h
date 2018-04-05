@@ -625,5 +625,7 @@ void rbc_mesh_set_custom_local_address(uint8_t* p_address);
  */
 int8_t rbc_mesh_get_rssi(uint8_t id);
 
+uint8_t* rbc_mesh_get_rssi_list();
+
 #endif /* _RBC_MESH_H__ */
 

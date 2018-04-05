@@ -437,3 +437,7 @@ int8_t rbc_mesh_get_rssi(uint8_t id)
 {
 	return vh_get_rssi(id);
 }
+
+uint8_t* rbc_mesh_get_rssi_list() {
+	return (uint8_t*)vh_get_rssi_list();
+}

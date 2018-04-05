@@ -81,5 +81,7 @@ int8_t   vh_average_rssi(uint8_t id, int8_t rssi);
 /** @brief: Get the averaged rssi, returns 0 when no value is known. */
 int8_t   vh_get_rssi(uint8_t id);
 
+rssi_avg_t* vh_get_rssi_list();
+
 #endif /* _VERSION_HANDLER_H__ */
 
