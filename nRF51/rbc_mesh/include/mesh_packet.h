@@ -46,6 +46,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define BLE_ADV_PACKET_PAYLOAD_MAX_LENGTH   (RBC_MESH_VALUE_MAX_LEN + 1 + MESH_PACKET_ADV_OVERHEAD)
 
+#define MESH_PACKET_ID_VALIDATION_SIZE      (3) // Number of bytes used to validate the id in the address field.
+
 /******************************************************************************
 * Public typedefs
 ******************************************************************************/

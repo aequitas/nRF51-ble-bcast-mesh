@@ -170,7 +170,9 @@ uint32_t mesh_packet_set_custom_local_addr(uint8_t* p_addr) {
 }
 
 uint32_t mesh_packet_set_id_as_local_addr(uint8_t id) {
-	memset(g_packet_local_addr, id, BLE_GAP_ADDR_LEN);
+
+	memset(g_packet_local_addr, id, MESH_PACKET_ID_VALIDATION_SIZE+1);
+	memset(g_packet_local_addr + MESH_PACKET_ID_VALIDATION_SIZE+1, 0, BLE_GAP_ADDR_LEN - (MESH_PACKET_ID_VALIDATION_SIZE+1));
 	g_packet_local_addr_set = true;
 	return NRF_SUCCESS;
 }
@@ -178,7 +180,7 @@ uint32_t mesh_packet_set_id_as_local_addr(uint8_t id) {
 uint8_t mesh_packet_get_id_from_addr(uint8_t* p_addr) {
 	// Check if all values are the same.
 	uint8_t id = p_addr[0];
-	for (uint8_t i=1; i<BLE_GAP_ADDR_LEN; ++i) {
+	for (uint8_t i=1; i<MESH_PACKET_ID_VALIDATION_SIZE+1; ++i) {
 		if (p_addr[i] != id) {
 			return 0;
 		}
