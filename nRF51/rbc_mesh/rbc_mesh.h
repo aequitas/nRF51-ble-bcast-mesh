@@ -618,6 +618,13 @@ void rbc_mesh_packet_peek_cb_set(rbc_mesh_packet_peek_cb_t packet_peek_cb);
 void rbc_mesh_set_custom_local_address(uint8_t* p_address);
 
 /**
+ * @brief Set custom local address, using an id. This will be sent instead of the MAC address.
+ *
+ * @param[in] id ID of this node.
+ */
+void rbc_mesh_set_id_as_custom_local_address(uint8_t id);
+
+/**
  * @brief Get the averaged rssi of a given id.
  *
  * @param[in] id Id of the node.

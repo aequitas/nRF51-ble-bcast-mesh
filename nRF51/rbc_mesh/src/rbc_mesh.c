@@ -433,6 +433,11 @@ void rbc_mesh_set_custom_local_address(uint8_t* p_address)
 	mesh_packet_set_custom_local_addr(p_address);
 }
 
+void rbc_mesh_set_id_as_custom_local_address(uint8_t id)
+{
+	mesh_packet_set_id_as_local_addr(id);
+}
+
 int8_t rbc_mesh_get_rssi(uint8_t id)
 {
 	return vh_get_rssi(id);

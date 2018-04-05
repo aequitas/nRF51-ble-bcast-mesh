@@ -114,6 +114,12 @@ uint32_t mesh_packet_set_local_addr(mesh_packet_t* p_packet);
 // Set a custom local address, copies data at p_addr to packet.
 uint32_t mesh_packet_set_custom_local_addr(uint8_t* p_addr);
 
+// Set a custom local address, using the id.
+uint32_t mesh_packet_set_id_as_local_addr(uint8_t id);
+
+// Returns id from custom local address, returns 0 when invalid.
+uint8_t mesh_packet_get_id_from_addr(uint8_t* p_addr);
+
 uint32_t mesh_packet_build(mesh_packet_t* p_packet,
         rbc_mesh_value_handle_t handle,
         uint16_t version,

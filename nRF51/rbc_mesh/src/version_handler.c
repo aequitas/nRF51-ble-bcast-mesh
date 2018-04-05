@@ -239,14 +239,17 @@ uint32_t vh_rx(mesh_packet_t* p_packet, uint32_t timestamp, uint8_t rssi)
 
     int16_t delta = version_delta(info.version, p_adv_data->version);
 
-    int8_t avgRssi = vh_average_rssi(p_packet->addr[0], -((int8_t) rssi));
+    uint8_t id = mesh_packet_get_id_from_addr(p_packet->addr);
+    int8_t avgRssi = -((int8_t) rssi);
+    if (id != 0) {
+    	avgRssi = vh_average_rssi(id, avgRssi);
+    }
 
     /* prepare app event */
     rbc_mesh_event_t evt;
     evt.params.rx.version_delta = delta;
     evt.params.rx.ble_adv_addr.addr_type = p_packet->header.addr_type;
     memcpy(evt.params.rx.ble_adv_addr.addr, p_packet->addr, BLE_GAP_ADDR_LEN);
-//    evt.params.rx.rssi = -((int8_t) rssi);
     evt.params.rx.rssi = avgRssi;
     evt.params.rx.p_data = p_adv_data->data;
     evt.params.rx.data_len = p_adv_data->adv_data_length - MESH_PACKET_ADV_OVERHEAD;
@@ -598,7 +601,7 @@ int8_t vh_average_rssi(uint8_t id, int8_t rssi)
 	}
 	bool found = false;
 	int8_t minRssi = 127;
-	int8_t minRssiInd = 0;
+	uint8_t minRssiInd = 0;
 	uint8_t i;
 	for (i=0; i<RSSI_LIST_SIZE; ++i) {
 		if (m_rssi_averages[i].id == id) {
