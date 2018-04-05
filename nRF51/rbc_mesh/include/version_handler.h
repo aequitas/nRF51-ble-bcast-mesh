@@ -38,7 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 typedef __packed_armcc struct {
 	uint8_t id;
-	int8_t rssi;
+	int16_t rssi;
 } __packed_gcc rssi_avg_t;
 
 uint32_t vh_init(uint32_t min_interval_us,

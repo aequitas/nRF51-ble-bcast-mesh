@@ -205,7 +205,7 @@ uint32_t vh_init(uint32_t min_interval_us,
 
     for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
     	m_rssi_averages[i].id = 0;
-    	m_rssi_averages[i].rssi = -128;
+    	m_rssi_averages[i].rssi = 256 * -128;
     }
 
 #ifdef TEST_PIN
@@ -614,11 +614,11 @@ int8_t vh_average_rssi(uint8_t id, int8_t rssi)
 		}
 	}
 	if (found) {
-		m_rssi_averages[i].rssi = RSSI_DISCOUNT_FACTOR * rssi + (1.0 - RSSI_DISCOUNT_FACTOR) * m_rssi_averages[i].rssi;
-		return m_rssi_averages[i].rssi;
+		m_rssi_averages[i].rssi = RSSI_DISCOUNT_FACTOR * 256 * rssi + (1.0 - RSSI_DISCOUNT_FACTOR) * m_rssi_averages[i].rssi;
+		return m_rssi_averages[i].rssi / 256;
 	}
 	m_rssi_averages[minRssiInd].id = id;
-	m_rssi_averages[minRssiInd].rssi = rssi;
+	m_rssi_averages[minRssiInd].rssi = 256 * rssi;
 	return rssi;
 }
 
@@ -626,7 +626,7 @@ int8_t vh_get_rssi(uint8_t id)
 {
 	for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
 		if (m_rssi_averages[i].id == id) {
-			return m_rssi_averages[i].rssi;
+			return m_rssi_averages[i].rssi / 256;
 		}
 	}
 	return 0;
