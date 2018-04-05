@@ -54,7 +54,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define TIMESLOT_STARTUP_DELAY_US       (100)
 #define RSSI_LIST_SIZE                  (10)
-#define RSSI_DISCOUNT_FACTOR            (0.01)
+#define RSSI_DISCOUNT_FACTOR            (0.1) // We store ints, so a too low discount factor will lead to no updates to the average rssi
 
 #define TEST_PIN 22
 
