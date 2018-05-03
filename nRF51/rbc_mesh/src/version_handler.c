@@ -69,6 +69,7 @@ static bool             m_is_initialized = false;
 static timer_event_t    m_tx_timer_evt;
 static tc_tx_config_t   m_tx_config;
 static rssi_avg_t       m_rssi_averages[RSSI_LIST_SIZE];
+static uint8_t          m_rssi_timeout;
 /******************************************************************************
 * Static functions
 ******************************************************************************/
@@ -203,10 +204,7 @@ uint32_t vh_init(uint32_t min_interval_us,
     m_tx_config.channel_map = 1; /* Only the first channel */
     m_tx_config.tx_power = tx_power;
 
-    for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
-    	m_rssi_averages[i].id = 0;
-    	m_rssi_averages[i].rssi = 256 * -128;
-    }
+    vh_clear_rssi_list();
 
 #ifdef TEST_PIN
 	nrf_gpio_cfg_output(TEST_PIN);
@@ -244,6 +242,7 @@ uint32_t vh_rx(mesh_packet_t* p_packet, uint32_t timestamp, uint8_t rssi)
     if (id != 0) {
     	avgRssi = vh_average_rssi(id, avgRssi);
     }
+    vh_rssi_check_timeout();
 
     /* prepare app event */
     rbc_mesh_event_t evt;
@@ -593,14 +592,13 @@ uint32_t vh_value_persistence_get(rbc_mesh_value_handle_t handle, bool* p_persis
     return error_code;
 }
 
-int8_t vh_average_rssi(uint8_t id, int8_t rssi)
-{
+int8_t vh_average_rssi(uint8_t id, int8_t rssi) {
 	if (rssi >= 0 || rssi < -120) {
 		// Invalid rssi!
 		return rssi;
 	}
 	bool found = false;
-	int8_t minRssi = 127;
+	int16_t minRssi = 256 * 127;
 	uint8_t minRssiInd = 0;
 	uint8_t i;
 	for (i=0; i<RSSI_LIST_SIZE; ++i) {
@@ -614,22 +612,58 @@ int8_t vh_average_rssi(uint8_t id, int8_t rssi)
 		}
 	}
 	if (found) {
+		// Average rssi
 		m_rssi_averages[i].rssi = RSSI_DISCOUNT_FACTOR * 256 * rssi + (1.0 - RSSI_DISCOUNT_FACTOR) * m_rssi_averages[i].rssi;
+		// Reset counter
+		m_rssi_averages[i].count = 0;
 		return m_rssi_averages[i].rssi / 256;
 	}
+	// Init this entry
 	m_rssi_averages[minRssiInd].id = id;
 	m_rssi_averages[minRssiInd].rssi = 256 * rssi;
+	m_rssi_averages[minRssiInd].count = 0;
 	return rssi;
 }
 
-int8_t vh_get_rssi(uint8_t id)
-{
+void vh_rssi_check_timeout() {
+	// Calculate timeout, this depends on the number of entries in use.
+	// TODO: keep up the timeout instead
+	m_rssi_timeout = 0;
+	for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
+		if (m_rssi_averages[i].id) {
+			m_rssi_timeout += VH_RSSI_TIMEOUT_PER_ENTRY;
+		}
+	}
+
+	for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
+		if (m_rssi_averages[i].id) {
+			if (++m_rssi_averages[i].count > m_rssi_timeout) {
+				// Timeout: mark entry as unused.
+				m_rssi_averages[i].id = 0;
+				// Set low rssi, so it will be used first for a new entry
+				m_rssi_averages[i].rssi = 256 * -128;
+			}
+		}
+	}
+}
+
+int8_t vh_get_rssi(uint8_t id) {
 	for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
 		if (m_rssi_averages[i].id == id) {
 			return m_rssi_averages[i].rssi / 256;
 		}
 	}
 	return 0;
+}
+
+void vh_clear_rssi_list() {
+	m_rssi_timeout = 0;
+	for (uint8_t i=0; i<RSSI_LIST_SIZE; ++i) {
+		m_rssi_averages[i].id = 0;
+		// Set low rssi, so it will be used first for a new entry
+		m_rssi_averages[i].rssi = 256 * -128;
+		m_rssi_averages[i].count = 0;
+	}
 }
 
 rssi_avg_t* vh_get_rssi_list() {

@@ -39,7 +39,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 typedef __packed_armcc struct {
 	uint8_t id;
 	int16_t rssi;
+	uint8_t count; // Used to timeout the rssi
 } __packed_gcc rssi_avg_t;
+
+// For each entry in the average rssi list, the timeout is increased with this value
+#define VH_RSSI_TIMEOUT_PER_ENTRY 10
 
 uint32_t vh_init(uint32_t min_interval_us,
                  uint32_t access_address,
@@ -78,8 +82,13 @@ uint32_t vh_value_persistence_get(rbc_mesh_value_handle_t handle, bool* p_persis
 /** @brief: Averages and stores the rssi, returns the average. */
 int8_t   vh_average_rssi(uint8_t id, int8_t rssi);
 
+/** @brief: Increases timeout count, and invalidates entries that timed out. */
+void     vh_rssi_check_timeout();
+
 /** @brief: Get the averaged rssi, returns 0 when no value is known. */
 int8_t   vh_get_rssi(uint8_t id);
+
+void     vh_clear_rssi_list();
 
 rssi_avg_t* vh_get_rssi_list();
 
